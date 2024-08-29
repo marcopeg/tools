@@ -47,7 +47,7 @@ export const QRCode: React.FC = () => {
               <Slider
                 {...field}
                 min={50}
-                max={600}
+                max={1200}
                 step={10}
                 valueLabelDisplay="auto"
               />
