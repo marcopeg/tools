@@ -1,0 +1,105 @@
+services:
+  api:
+    container_name: api
+    build:
+      context: api
+      dockerfile: Dockerfile.dev
+    ports:
+      - "${API_PORT:-4000}:8080"
+    volumes:
+      - ./api/src:/usr/src/app/src
+      - /usr/src/app/node_modules
+    environment:
+      NODE_ENV: development
+      PGSTRING: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres
+      GOOGLE_TRANSLATE_API_KEY: ${GOOGLE_TRANSLATE_API_KEY:-key}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-key}
+      DIFFBOT_TOKEN: ${DIFFBOT_TOKEN:-key}
+      ARTICLEXTRACTOR_TOKEN: ${ARTICLEXTRACTOR_TOKEN:-key}
+      JWT_SECRET: ${JWT_SECRET:-1234567890123456789012345678901234567890}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Kickstart the backend services
+  # and applies the initial state
+  # (migration, metadata, seeds)
+  boot:
+    container_name: boot
+    build:
+      context: hasura-app
+      dockerfile: Dockerfile
+    environment:
+      HASURA_GRAPHQL_ADMIN_SECRET: "${HASURA_ADMIN_SECRET:-hasura}"
+      HASURA_GRAPHQL_ENDPOINT: http://hasura-engine:8080
+      HASURA_APPLY_MIGRATIONS: "true"
+      HASURA_APPLY_METADATA: "true"
+      HASURA_APPLY_SEEDS: "true"
+      HASURA_VERIFY: "true"
+    depends_on:
+      hasura-engine:
+        condition: service_healthy
+
+  hasura-engine:
+    container_name: hasura-engine
+    image: hasura/graphql-engine:v2.41.0-beta.1.cli-migrations-v3
+    ports:
+      - "${HASURA_PORT:-8080}:8080"
+    environment:
+      # Setup main db connection:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres
+      # Setup basic authentication settings:
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_SECRET:-hasura}
+      HASURA_GRAPHQL_JWT_SECRET: '{"type":"HS256", "key": "1234567890123456789012345678901234567890"}'
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: anonymous
+      # Other settings
+      HASURA_GRAPHQL_DEV_MODE: "true"
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, query-log
+      HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: "true"
+      HASURA_GRAPHQL_ENABLE_TELEMETRY: "false"
+      HASURA_GRAPHQL_INFER_FUNCTION_PERMISSIONS: "false"
+      # Custom variables
+      REST_API_BASE_URL: ${HASURA_REST_API_BASE_URL:-http://api:8080}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: timeout 1s bash -c ':> /dev/tcp/127.0.0.1/8080' || exit 1
+      interval: 2s
+      timeout: 1s
+      retries: 20
+
+  postgres:
+    container_name: postgres
+    image: postgres:16
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 1s
+      retries: 20
+
+  # Web-based Database Client
+  adminer:
+    image: adminer:4.8.1
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+    links:
+      - postgres:db
+    restart: unless-stopped
+
+volumes:
+  postgres:
+
+networks:
+  babelify:
+    name: babelify
+    driver: bridge

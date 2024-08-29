@@ -1,0 +1,10 @@
+{
+  "import": "Import Article",
+  "bucket": {
+    "library": "Library",
+    "history": "History",
+    "starred": "Starred",
+    "snoozed": "Snoozed",
+    "archived": "Archived"
+  }
+}

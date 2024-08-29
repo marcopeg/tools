@@ -1,0 +1,18 @@
+services:
+  app:
+    container_name: app
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: "production"
+    ports:
+      - "${APP_PORT:-5173}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080 || exit 1"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+    depends_on:
+      hasura-engine:
+        condition: service_healthy
